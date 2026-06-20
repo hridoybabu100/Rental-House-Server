@@ -106,10 +106,10 @@ async function run() {
         organizationEmail: data?.organizationEmail,
       });
 
+      // api events email
       app.get("/api/events/:email", async (req, res) => {
         const { email } = req.params;
         // console.log(email);
-
         const result = await eventsCollection
           .find({ organizationEmail: email })
           .toArray();
@@ -159,9 +159,15 @@ async function run() {
       res.send(result);
     });
 
+      //All events gula ke pawar jonne.
+
+      app.get("/api/events", async (req, res) => {
+        const cursor = await eventsCollection.find();
+        const result = await cursor.toArray();
+        res.send(result);
+      })
     
     //Patch
-
     app.patch("/api/events/:id", async (req, res) => {
       // console.log(req.body);
       const { id } = req.params;
