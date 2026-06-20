@@ -96,32 +96,46 @@ async function run() {
     });
 
     //Property add
-       app.post('/api/events', async (req, res) => {
+    app.post("/api/events", async (req, res) => {
       const data = req.body;
       // console.log(data);
-      const organizer = await usersCollection.findOne({ email: data?.organizationEmail });
+      const organizer = await usersCollection.findOne({
+        email: data?.organizationEmail,
+      });
       const organizerEventsCounts = await eventsCollection.countDocuments({
         organizationEmail: data?.organizationEmail,
       });
+
+      app.get("/api/events/:email", async (req, res) => {
+        const { email } = req.params;
+        // console.log(email);
+
+        const result = await eventsCollection
+          .find({ organizationEmail: email })
+          .toArray();
+        res.send(result);
+      });
+
+      
       // console.log(organizerEventsCounts);
 
       if (!organizer?.isPremium && organizerEventsCounts >= 3) {
         return res.status(401).send({
-          message: 'Your free limit is over',
+          message: "Your free limit is over",
         });
       }
       const result = await eventsCollection.insertOne({
         ...data,
-        status: 'pending',
+        status: "pending",
       });
       // console.log(result);
 
       res.send(result);
     });
 
-    //Patch 
+    //Patch
 
-     app.patch('/api/events/:id', async (req, res) => {
+    app.patch("/api/events/:id", async (req, res) => {
       // console.log(req.body);
       const { id } = req.params;
 
@@ -133,16 +147,15 @@ async function run() {
           $set: {
             ...updateData,
           },
-        }
+        },
       );
       // console.log(result);
 
       res.send(result);
     });
 
-
     // delete
-      app.patch('/api/users/upgrade-premium/:email', async (req, res) => {
+    app.patch("/api/users/upgrade-premium/:email", async (req, res) => {
       const { email } = req.params;
       const { amount, transactionId, paymentStatus, paymentType } = req.body;
 
@@ -152,7 +165,7 @@ async function run() {
           $set: {
             isPremium: true,
           },
-        }
+        },
       );
       const paymentData = {
         userEmail: email,
@@ -167,8 +180,6 @@ async function run() {
 
       res.send(result);
     });
-
-
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
