@@ -1,5 +1,5 @@
 const express = require("express");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const cors = require("cors");
 const dotenv = require("dotenv");
@@ -32,11 +32,19 @@ async function run() {
     const bookingCollection = db.collection("bookings");
     const paymentCollection = db.collection("payments");
 
-
-
-     app.post('/api/organizations', async (req, res) => {
+    //Organization get post
+    app.get("/api/organization/:email", async (req, res) => {
+      const { email } = req.params;
+      const result = await organizationCollection.findOne({
+        organizerEmail: email,
+      });
+      res.send(result);
+    });
+    //Organization post
+    app.post("/api/organizations", async (req, res) => {
       console.log(req.body);
-      const { organizationName, logo, website, description, organizerEmail } = req.body;
+      const { organizationName, logo, website, description, organizerEmail } =
+        req.body;
 
       const addData = {
         organizationName,
@@ -45,11 +53,44 @@ async function run() {
         description,
         organizerEmail,
         createdAt: new Date(),
-        status: 'active',
+        status: "active",
       };
 
       const result = await organizationCollection.insertOne(addData);
-      // console.log(result);
+      res.send(result);
+    });
+
+    //Orzanization patch updated data
+    app.patch("/api/organizations/:id", async (req, res) => {
+      const { id } = req.params;
+
+      const { organizationName, logo, website, description, organizerEmail } =
+        req.body;
+      console.log(
+        organizationName,
+        logo,
+        website,
+        description,
+        organizerEmail,
+        id,
+      );
+
+      const updateData = {
+        organizationName,
+        logo,
+        website,
+        description,
+        organizerEmail,
+      };
+
+      const result = await organizationCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            ...updateData,
+          },
+        },
+      );
 
       res.send(result);
     });
