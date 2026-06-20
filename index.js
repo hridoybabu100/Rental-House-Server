@@ -116,7 +116,33 @@ async function run() {
         res.send(result);
       });
 
-      
+        app.delete('/api/events/:id', async (req, res) => {
+      const { id } = req.params;
+      const result = await eventsCollection.deleteOne({ _id: new ObjectId(id) });
+      res.send(result);
+    });
+
+
+     app.patch('/api/events/:id', async (req, res) => {
+      // console.log(req.body);
+      const { id } = req.params;
+
+      const updateData = req.body;
+
+      const result = await eventsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            ...updateData,
+          },
+        }
+      );
+      // console.log(result);
+
+      res.send(result);
+    });
+
+
       // console.log(organizerEventsCounts);
 
       if (!organizer?.isPremium && organizerEventsCounts >= 3) {
@@ -133,6 +159,7 @@ async function run() {
       res.send(result);
     });
 
+    
     //Patch
 
     app.patch("/api/events/:id", async (req, res) => {
