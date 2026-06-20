@@ -95,6 +95,81 @@ async function run() {
       res.send(result);
     });
 
+    //Property add
+       app.post('/api/events', async (req, res) => {
+      const data = req.body;
+      // console.log(data);
+      const organizer = await usersCollection.findOne({ email: data?.organizationEmail });
+      const organizerEventsCounts = await eventsCollection.countDocuments({
+        organizationEmail: data?.organizationEmail,
+      });
+      // console.log(organizerEventsCounts);
+
+      if (!organizer?.isPremium && organizerEventsCounts >= 3) {
+        return res.status(401).send({
+          message: 'Your free limit is over',
+        });
+      }
+      const result = await eventsCollection.insertOne({
+        ...data,
+        status: 'pending',
+      });
+      // console.log(result);
+
+      res.send(result);
+    });
+
+    //Patch 
+
+     app.patch('/api/events/:id', async (req, res) => {
+      // console.log(req.body);
+      const { id } = req.params;
+
+      const updateData = req.body;
+
+      const result = await eventsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            ...updateData,
+          },
+        }
+      );
+      // console.log(result);
+
+      res.send(result);
+    });
+
+
+    // delete
+      app.patch('/api/users/upgrade-premium/:email', async (req, res) => {
+      const { email } = req.params;
+      const { amount, transactionId, paymentStatus, paymentType } = req.body;
+
+      const result = await usersCollection.updateOne(
+        { email },
+        {
+          $set: {
+            isPremium: true,
+          },
+        }
+      );
+      const paymentData = {
+        userEmail: email,
+        amount,
+        transactionId,
+        paymentStatus,
+        paymentType,
+        paidAt: new Date(),
+      };
+
+      await paymentCollection.insertOne(paymentData);
+
+      res.send(result);
+    });
+
+
+
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
     console.log(
