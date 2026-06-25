@@ -177,7 +177,7 @@ async function run() {
       });
       // console.log(organizerEventsCounts);
 
-      if (!organizer?.isPremium && organizerEventsCounts >= 3) {
+      if (!organizer?.isPremium && organizerEventsCounts >= 10) {
         return res.status(401).send({
           message: 'Your free limit is over',
         });
@@ -224,17 +224,14 @@ async function run() {
       const search = req.query.search;
       const category = req.query.category;
       const location = req.query.location;
-      const query = {}; // {title: "mern"}
+      const query = {}; 
       if (search) {
         query.title = {
           $regex: search,
-          $options: 'i', // upper lower matter korbe na
+          $options: 'i',
         };
       }
       if (category) {
-        // query.category = category;
-        // ?category=Music,Tech,Digial
-        // console.log(category, category.split(',')); ["Music", "Tech", "Digital"]
 
         query.category = { $in: category.split(',') };
       }
@@ -247,7 +244,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get('/api/single-events/:id', async (req, res) => {
+       app.get('/api/single-events/:id', async (req, res) => {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
       const result = await eventsCollection.findOne(query);
@@ -257,7 +254,7 @@ async function run() {
 
       // console.log(organizerEventsCounts);
 
-      if (!organizer?.isPremium && organizerEventsCounts >= 3) {
+      if (!organizer?.isPremium && organizerEventsCounts >= 10) {
         return res.status(401).send({
           message: "Your free limit is over",
         });
@@ -299,32 +296,11 @@ async function run() {
       res.send(result);
     });
 
-
-
-    // delete
-    app.patch("/api/users/upgrade-premium/:email", async (req, res) => {
-      const { email } = req.params;
-      const { amount, transactionId, paymentStatus, paymentType } = req.body;
-
-      const result = await usersCollection.updateOne(
-        { email },
-        {
-          $set: {
-            isPremium: true,
-          },
-        },
-      );
-      const paymentData = {
-        userEmail: email,
-        amount,
-        transactionId,
-        paymentStatus,
-        paymentType,
-        paidAt: new Date(),
-      };
-
-      await paymentCollection.insertOne(paymentData);
-
+      
+        app.get('/api/single-events/:id', async (req, res) => {
+      const { id } = req.params;
+      const query = { _id: new ObjectId(id) };
+      const result = await eventsCollection.findOne(query);
       res.send(result);
     });
 
