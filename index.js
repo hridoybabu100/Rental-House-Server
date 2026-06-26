@@ -296,13 +296,8 @@ app.get("/api/events/:email", async (req, res) => {
 });
 
 
-app.get("/api/events/featured", async (req, res) => {
-  const cursor = await eventsCollection.find().limit(6);
-  const result = await cursor.toArray();
-  res.send(result);
-});
 
-//Patch
+//Patch mane edit
 app.patch("/api/events/:id", async (req, res) => {
   // console.log(req.body);
   const { id } = req.params;
