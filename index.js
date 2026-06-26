@@ -20,16 +20,16 @@ const client = new MongoClient(uri, {
   },
 });
 
-// async function run() {
-//   try {
+async function run() {
+  try {
 
-//     await client.connect();
+    await client.connect();
 
-client
-  .connect(() => {
-    console.log("Conneted to Mongo DB uri");
-  })
-  .catch(console.dir);
+// client
+//   .connect(() => {
+//     console.log("Conneted to Mongo DB uri");
+//   })
+//   .catch(console.dir);
 
 const db = client.db("House_DB");
 const organizationCollection = db.collection("organizations");
@@ -37,7 +37,6 @@ const eventsCollection = db.collection("events");
 const usersCollection = db.collection("user");
 const bookingCollection = db.collection("bookings");
 const paymentCollection = db.collection("payments");
-
 
 //Organization get post
 app.get("/api/organization/:email", async (req, res) => {
@@ -47,6 +46,18 @@ app.get("/api/organization/:email", async (req, res) => {
   });
   res.send(result);
 });
+
+app.get("/api/events/booking/:email", async(req, res) => {
+      const {email} = req.params;
+      // console.log('email', email);
+      
+      const result = await bookingCollection.find({attendeeEmail : email}).toArray();
+
+      // console.log('Bookings', result);
+      
+      res.send(result)
+    })
+
 //Organization post
 app.post("/api/organizations", async (req, res) => {
   console.log(req.body);
@@ -278,6 +289,8 @@ app.get("/api/events", async (req, res) => {
   const result = await cursor.toArray();
   res.send(result);
 });
+
+
 app.get("/api/events/featured", async (req, res) => {
   const cursor = await eventsCollection.find().limit(6);
   const result = await cursor.toArray();
@@ -310,6 +323,7 @@ app.get("/api/single-events/:id", async (req, res) => {
   const result = await eventsCollection.findOne(query);
   res.send(result);
 });
+
 
 //Primium upgrade
 app.patch("/api/users/upgrade-premium/:email", async (req, res) => {
@@ -346,24 +360,63 @@ app.get("/api/payment/:email", async (req, res) => {
   res.send(result);
 });
 
+  app.post('/api/events/booking', async (req, res) => {
+      const { amount, evetId, eventTitle, quantity, email, paymentType, transactionId, paymentStatus } = req.body;
+      // console.log(req.body);
+      const bookingData = {
+        evetId,
+        eventTitle,
+        attendeeEmail: email,
+        quantity,
+        amount,
+        transactionId,
+        paymentStatus,
+        bookingDate: new Date(),
+      };
+      const isBookingExist = await bookingCollection.findOne({ transactionId });
+      if (isBookingExist) {
+        return res.status(200).send({ message: 'Already paid' });
+      }
+      const bookingRes = await bookingCollection.insertOne(bookingData);
 
-// Send a ping to confirm a successful connection
-// await client.db("admin").command({ ping: 1 });
-// "Pinged your deployment. You successfully connected to MongoDB!",
-//     console.log(
-//     );
-//   } finally {
+      await eventsCollection.updateOne(
+        { _id: new ObjectId(evetId) },
+        {
+          $inc: {
+            capacity: -quantity,
+          },
+        }
+      );
+      const paymentData = {
+        userEmail: email,
+        amount,
+        transactionId,
+        paymentStatus,
+        paymentType,
+        paidAt: new Date(),
+      };
 
-//   }
-// }
-// run().catch(console.dir);
-
-app.get("/", (req, res) => {
-  res.send("Hello tenant house building!");
-});
+      await paymentCollection.insertOne(paymentData);
+      res.send(bookingRes);
+    });
 
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
 });
 
-module.exports = app;
+
+  await client.db("admin").command({ ping: 1 });
+    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+  } finally {
+    // Ensures that the client will close when you finish/error
+    // await client.close();
+  }
+
+  app.get("/", (req, res) => {
+  res.send("Hello tenant house building!");
+});
+
+
+}
+run().catch(console.dir);
+// module.exports = app;
