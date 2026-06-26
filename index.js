@@ -289,6 +289,11 @@ app.get("/api/events", async (req, res) => {
   const result = await cursor.toArray();
   res.send(result);
 });
+app.get("/api/events/:email", async (req, res) => {
+  const {email} = req.params;
+  const result = await eventsCollection.find({organizationEmail : email}).toArray();
+  res.send(result);
+});
 
 
 app.get("/api/events/featured", async (req, res) => {
