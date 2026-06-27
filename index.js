@@ -296,7 +296,6 @@ app.get("/api/events/:email", async (req, res) => {
 });
 
 
-
 //Patch mane edit
 app.patch("/api/events/:id", async (req, res) => {
   // console.log(req.body);
