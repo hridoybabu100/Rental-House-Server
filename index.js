@@ -9,9 +9,12 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-const uri = process.env.MOONGO_DB_DATA_BASE;
+const logger = (req, res, next) => {
+  console.log("The logger is a", req.params);
+  next();
+};
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+const uri = process.env.MOONGO_DB_DATA_BASE;
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -22,346 +25,203 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
+    // await client.connect();
 
-    await client.connect();
+    const db = client.db("House_DB");
+    const organizationCollection = db.collection("organizations");
+    const eventsCollection = db.collection("events");
+    const usersCollection = db.collection("user");
+    const bookingCollection = db.collection("bookings");
+    const paymentCollection = db.collection("payments");
+    const sessionCollection = db.collection("session");
 
-// client
-//   .connect(() => {
-//     console.log("Conneted to Mongo DB uri");
-//   })
-//   .catch(console.dir);
+    //Verify Token & midaleware
+    const verifyToken = async (req, res, next) => {
+      // console.log("Backend Headers", req.headers);
+      const authHeader = req.headers?.authorization;
+      if (!authHeader) {
+        return res.status(404).send({ message: "Unauthorized access" });
+      }
+      const token = authHeader.split(" ")[1];
+      if (!token) {
+        return res.status(404).send({ message: "Unauthorized access" });
+      }
 
-const db = client.db("House_DB");
-const organizationCollection = db.collection("organizations");
-const eventsCollection = db.collection("events");
-const usersCollection = db.collection("user");
-const bookingCollection = db.collection("bookings");
-const paymentCollection = db.collection("payments");
+      const query = { token: token };
+      const session = await sessionCollection.findOne(query);
+      // console.log('The session', session);
 
-//Organization get post
-app.get("/api/organization/:email", async (req, res) => {
-  const { email } = req.params;
-  const result = await organizationCollection.findOne({
-    organizerEmail: email,
-  });
-  res.send(result);
-});
+      const userId = session?.userId;
+      // console.log("User Id", userId);
 
-app.get("/api/events/booking/:email", async(req, res) => {
-      const {email} = req.params;
-      // console.log('email', email);
-      
-      const result = await bookingCollection.find({attendeeEmail : email}).toArray();
-
-      // console.log('Bookings', result);
-      
-      res.send(result)
-    })
-
-//Organization post
-app.post("/api/organizations", async (req, res) => {
-  console.log(req.body);
-  const { organizationName, logo, website, description, organizerEmail } =
-    req.body;
-
-  const addData = {
-    organizationName,
-    logo,
-    website,
-    description,
-    organizerEmail,
-    createdAt: new Date(),
-    status: "active",
-  };
-
-  const result = await organizationCollection.insertOne(addData);
-  res.send(result);
-});
-
-//Orzanization patch updated data
-app.patch("/api/organizations/:id", async (req, res) => {
-  const { id } = req.params;
-
-  const { organizationName, logo, website, description, organizerEmail } =
-    req.body;
-  console.log(organizationName, logo, website, description, organizerEmail, id);
-
-  const updateData = {
-    organizationName,
-    logo,
-    website,
-    description,
-    organizerEmail,
-  };
-
-  const result = await organizationCollection.updateOne(
-    { _id: new ObjectId(id) },
-    {
-      $set: {
-        ...updateData,
-      },
-    },
-  );
-
-  res.send(result);
-});
-
-//Property add
-app.post("/api/events", async (req, res) => {
-  const data = req.body;
-  // console.log(data);
-  const organizer = await usersCollection.findOne({
-    email: data?.organizationEmail,
-  });
-  const organizerEventsCounts = await eventsCollection.countDocuments({
-    organizationEmail: data?.organizationEmail,
-  });
-
-  // api events email
-  app.get("/api/events/:email", async (req, res) => {
-    const { email } = req.params;
-    // console.log(email);
-    const result = await eventsCollection
-      .find({ organizationEmail: email })
-      .toArray();
-    res.send(result);
-  });
-
-  app.get("/api/events/booking/:email", async (req, res) => {
-    const { email } = req.params;
-
-    const result = await bookingCollection
-      .find({ attendeeEmail: email })
-      .toArray();
-
-    res.send(result);
-  });
-
-  app.post("/api/events/booking", async (req, res) => {
-    const {
-      amount,
-      evetId,
-      eventTitle,
-      quantity,
-      email,
-      paymentType,
-      transactionId,
-      paymentStatus,
-    } = req.body;
-    // console.log(req.body);
-    const bookingData = {
-      evetId,
-      eventTitle,
-      attendeeEmail: email,
-      quantity,
-      amount,
-      transactionId,
-      paymentStatus,
-      bookingDate: new Date(),
-    };
-    const isBookingExist = await bookingCollection.findOne({ transactionId });
-    if (isBookingExist) {
-      return res.status(200).send({ message: "Already paid" });
-    }
-    const bookingRes = await bookingCollection.insertOne(bookingData);
-
-    await eventsCollection.updateOne(
-      { _id: new ObjectId(evetId) },
-      {
-        $inc: {
-          capacity: -quantity,
-        },
-      },
-    );
-    const paymentData = {
-      userEmail: email,
-      amount,
-      transactionId,
-      paymentStatus,
-      paymentType,
-      paidAt: new Date(),
-    };
-
-    await paymentCollection.insertOne(paymentData);
-    res.send(bookingRes);
-  });
-
-  app.post("/api/events", async (req, res) => {
-    const data = req.body;
-    // console.log(data);
-    const organizer = await usersCollection.findOne({
-      email: data?.organizationEmail,
-    });
-    const organizerEventsCounts = await eventsCollection.countDocuments({
-      organizationEmail: data?.organizationEmail,
-    });
-    // console.log(organizerEventsCounts);
-
-    if (!organizer?.isPremium && organizerEventsCounts >= 10) {
-      return res.status(401).send({
-        message: "Your free limit is over",
-      });
-    }
-    const result = await eventsCollection.insertOne({
-      ...data,
-      status: "pending",
-    });
-    // console.log(result);
-
-    res.send(result);
-  });
-
-  app.delete("/api/events/:id", async (req, res) => {
-    const { id } = req.params;
-    const result = await eventsCollection.deleteOne({ _id: new ObjectId(id) });
-    res.send(result);
-  });
-
-  app.patch("/api/events/:id", async (req, res) => {
-    // console.log(req.body);
-    const { id } = req.params;
-
-    const updateData = req.body;
-
-    const result = await eventsCollection.updateOne(
-      { _id: new ObjectId(id) },
-      {
-        $set: {
-          ...updateData,
-        },
-      },
-    );
-    // console.log(result);
-
-    res.send(result);
-  });
-
-  app.get("/api/events", async (req, res) => {
-    const search = req.query.search;
-    const category = req.query.category;
-    const location = req.query.location;
-    const query = {};
-    if (search) {
-      query.title = {
-        $regex: search,
-        $options: "i",
+      const userQuery = {
+        _id: userId,
       };
-    }
-    if (category) {
-      query.category = { $in: category.split(",") };
-    }
-    if (location) {
-      query.location = location;
-    }
 
-    const cursor = eventsCollection.find(query);
-    const result = await cursor.toArray();
-    res.send(result);
-  });
+      const user = await usersCollection.findOne(userQuery);
+      // console.log('The user is a', user);
+      req.user = user;
 
-  app.get("/api/single-events/:id", async (req, res) => {
-    const { id } = req.params;
-    const query = { _id: new ObjectId(id) };
-    const result = await eventsCollection.findOne(query);
-    res.send(result);
-  });
+      next(); // <-- you were missing this; without it every request using this middleware hangs forever
+    };
 
-  // console.log(organizerEventsCounts);
+    
 
-  if (!organizer?.isPremium && organizerEventsCounts >= 10) {
-    return res.status(401).send({
-      message: "Your free limit is over",
+    app.get("/", (req, res) => {
+      res.send("Hello tenant house building!");
     });
-  }
-  const result = await eventsCollection.insertOne({
-    ...data,
-    status: "pending",
-  });
-  // console.log(result);
 
-  res.send(result);
-});
+    // --- Organization routes ---
+    app.get("/api/organization/:email", async (req, res) => {
+      const { email } = req.params;
+      const result = await organizationCollection.findOne({
+        organizerEmail: email,
+      });
+      res.send(result);
+    });
 
-//All events gula ke pawar jonne.
+    app.post("/api/organizations", async (req, res) => {
+      const { organizationName, logo, website, description, organizerEmail } =
+        req.body;
 
-app.get("/api/events", async (req, res) => {
-  const cursor = await eventsCollection.find();
-  const result = await cursor.toArray();
-  res.send(result);
-});
-app.get("/api/events/:email", async (req, res) => {
-  const {email} = req.params;
-  const result = await eventsCollection.find({organizationEmail : email}).toArray();
-  res.send(result);
-});
+      const addData = {
+        organizationName,
+        logo,
+        website,
+        description,
+        organizerEmail,
+        createdAt: new Date(),
+        status: "active",
+      };
 
+      const result = await organizationCollection.insertOne(addData);
+      res.send(result);
+    });
 
-//Patch mane edit
-app.patch("/api/events/:id", async (req, res) => {
-  // console.log(req.body);
-  const { id } = req.params;
+    app.patch("/api/organizations/:id", async (req, res) => {
+      const { id } = req.params;
+      const { organizationName, logo, website, description, organizerEmail } =
+        req.body;
 
-  const updateData = req.body;
+      const updateData = {
+        organizationName,
+        logo,
+        website,
+        description,
+        organizerEmail,
+      };
 
-  const result = await eventsCollection.updateOne(
-    { _id: new ObjectId(id) },
-    {
-      $set: {
-        ...updateData,
-      },
-    },
-  );
-  // console.log(result);
+      const result = await organizationCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { ...updateData } },
+      );
 
-  res.send(result);
-});
+      res.send(result);
+    });
 
-app.get("/api/single-events/:id", async (req, res) => {
-  const { id } = req.params;
-  const query = { _id: new ObjectId(id) };
-  const result = await eventsCollection.findOne(query);
-  res.send(result);
-});
+    // --- Events routes ---
+    app.get("/api/events", async (req, res) => {
+      const search = req.query.search;
+      const category = req.query.category;
+      const location = req.query.location;
+      const query = {};
+      if (search) {
+        query.title = { $regex: search, $options: "i" };
+      }
+      if (category) {
+        query.category = { $in: category.split(",") };
+      }
+      if (location) {
+        query.location = location;
+      }
 
+      const cursor = eventsCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+   
 
-//Primium upgrade
-app.patch("/api/users/upgrade-premium/:email", async (req, res) => {
-  const { email } = req.params;
-  const { amount, transactionId, paymentStatus, paymentType } = req.body;
+    app.get("/api/events/:email", verifyToken, logger, async (req, res) => {
+      const { email } = req.params;
+      const result = await eventsCollection
+        .find({ organizationEmail: email })
+        .toArray();
+      res.send(result);
+    });
 
-  const result = await usersCollection.updateOne(
-    { email },
-    {
-      $set: {
-        isPremium: true,
-      },
-    },
-  );
-  const paymentData = {
-    userEmail: email,
-    amount,
-    transactionId,
-    paymentStatus,
-    paymentType,
-    paidAt: new Date(),
-  };
+    
 
-  await paymentCollection.insertOne(paymentData);
+    app.get("/api/single-events/:id", async (req, res) => {
+      const { id } = req.params;
+      const query = { _id: new ObjectId(id) };
+      const result = await eventsCollection.findOne(query);
+      res.send(result);
+    });
 
-  res.send(result);
-});
+    app.post("/api/events", async (req, res) => {
+      const data = req.body;
+      const organizer = await usersCollection.findOne({
+        email: data?.organizationEmail,
+      });
+      const organizerEventsCounts = await eventsCollection.countDocuments({
+        organizationEmail: data?.organizationEmail,
+      });
 
-app.get("/api/payment/:email", async (req, res) => {
-  const { email } = req.params;
-  console.log(email);
+      if (!organizer?.isPremium && organizerEventsCounts >= 10) {
+        return res.status(401).send({
+          message: "Your free limit is over",
+        });
+      }
 
-  const result = await paymentCollection.find({ userEmail: email }).toArray();
-  res.send(result);
-});
+      const result = await eventsCollection.insertOne({
+        ...data,
+        status: "pending",
+      });
 
-  app.post('/api/events/booking', async (req, res) => {
-      const { amount, evetId, eventTitle, quantity, email, paymentType, transactionId, paymentStatus } = req.body;
-      // console.log(req.body);
+      res.send(result);
+    });
+
+    app.patch("/api/events/:id", async (req, res) => {
+      const { id } = req.params;
+      const updateData = req.body;
+
+      const result = await eventsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { ...updateData } },
+      );
+
+      res.send(result);
+    });
+
+    app.delete("/api/events/:id", async (req, res) => {
+      const { id } = req.params;
+      const result = await eventsCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+      res.send(result);
+    });
+
+    // --- Bookings routes ---
+    app.get("/api/events/booking/:email",async (req, res) => {
+      const { email } = req.params;
+      const result = await bookingCollection
+        .find({ attendeeEmail: email })
+        .toArray();
+      res.send(result);
+    });
+
+    app.post("/api/events/booking", async (req, res) => {
+      const {
+        amount,
+        evetId,
+        eventTitle,
+        quantity,
+        email,
+        paymentType,
+        transactionId,
+        paymentStatus,
+      } = req.body;
+
       const bookingData = {
         evetId,
         eventTitle,
@@ -372,20 +232,19 @@ app.get("/api/payment/:email", async (req, res) => {
         paymentStatus,
         bookingDate: new Date(),
       };
+
       const isBookingExist = await bookingCollection.findOne({ transactionId });
       if (isBookingExist) {
-        return res.status(200).send({ message: 'Already paid' });
+        return res.status(200).send({ message: "Already paid" });
       }
+
       const bookingRes = await bookingCollection.insertOne(bookingData);
 
       await eventsCollection.updateOne(
         { _id: new ObjectId(evetId) },
-        {
-          $inc: {
-            capacity: -quantity,
-          },
-        }
+        { $inc: { capacity: -quantity } },
       );
+
       const paymentData = {
         userEmail: email,
         amount,
@@ -399,23 +258,51 @@ app.get("/api/payment/:email", async (req, res) => {
       res.send(bookingRes);
     });
 
+    // --- Premium / payment routes ---
+    app.patch("/api/users/upgrade-premium/:email", async (req, res) => {
+      const { email } = req.params;
+      const { amount, transactionId, paymentStatus, paymentType } = req.body;
+
+      const result = await usersCollection.updateOne(
+        { email },
+        { $set: { isPremium: true } },
+      );
+
+      const paymentData = {
+        userEmail: email,
+        amount,
+        transactionId,
+        paymentStatus,
+        paymentType,
+        paidAt: new Date(),
+      };
+
+      await paymentCollection.insertOne(paymentData);
+
+      res.send(result);
+    });
+
+    app.get("/api/payment/:email", async (req, res) => {
+      const { email } = req.params;
+      const result = await paymentCollection
+        .find({ userEmail: email })
+        .toArray();
+      res.send(result);
+    });
+
+    // await client.db("admin").command({ ping: 1 });
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!",
+    );
+  } finally {
+    // await client.close();
+  }
+}
+
+run().catch(console.dir);
+
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
 });
 
-
-  await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
-  }
-
-  app.get("/", (req, res) => {
-  res.send("Hello tenant house building!");
-});
-
-
-}
-run().catch(console.dir);
 // module.exports = app;
